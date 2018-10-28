@@ -1,0 +1,26 @@
+{
+  "name": "js-react-hn",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "mobx": "^5.5.2",
+    "mobx-react": "^5.3.6",
+    "npm": "^6.4.0",
+    "react": "^16.6",
+    "react-dom": "^16.6.0",
+    "react-router-dom": "^16.6.1",
+    "react-scripts": "^1.1.4"
+  },
+  "scripts": {
+    "start": "react-app-rewired start",
+    "build": "react-app-rewired build",
+    "test": "react-app-rewired test --env=jsdom",
+    "eject": "react-scripts eject"
+  },
+  "devDependencies": {
+    "mobx-react-devtools": "^6.0.3",
+    "prettier": "1.14.3",
+    "react-app-rewire-mobx": "^1.0.9",
+    "react-app-rewired": "^1.6.2"
+  }
+}

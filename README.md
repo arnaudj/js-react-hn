@@ -1,1 +1,1 @@
-# js-react-hn
+# HN React client
