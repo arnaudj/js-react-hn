@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@material-ui/core": "^3.3.2",
     "mobx": "^5.5.2",
     "mobx-react": "^5.3.6",
     "npm": "^6.4.0",

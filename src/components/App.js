@@ -5,7 +5,7 @@ import { observer, inject, Provider } from "mobx-react";
 import DevTools from "mobx-react-devtools";
 import { BrowserRouter as Router, Route, Link } from "react-router-dom";
 import { apiGetComments } from "../api";
-
+import Button from '@material-ui/core/Button';
 /**
  * React hooks and mobx-react: mobx-react isn't ready for hooks;
  * -: requires a workaround: use a dedicated function component, as hooks do not support classes and inject/observe on a function do not match hooks invariant check 'Hooks can only be called inside the body of a function component'
@@ -35,19 +35,19 @@ const StoryComponentFunctionComponent = ({ onShow, story, comments }) => {
       {story.isFetching ? (
         <span>Loading...</span>
       ) : (
-        <div>
-          Story comments:
+          <div>
+            Story comments:
           <br />
-          {comments.length
-            ? comments.map(comment => (
+            {comments.length
+              ? comments.map(comment => (
                 <div key={comment.id}>
                   - {comment.author}: {comment.comment}
                   <br />
                 </div>
               ))
-            : "No comment"}
-        </div>
-      )}
+              : "No comment"}
+          </div>
+        )}
     </div>
   );
 };
@@ -206,6 +206,9 @@ const BasicExample = props => {
   return (
     <Provider store={props.store}>
       <React.Fragment>
+        <Button variant="contained" color="primary">
+          Hello World
+    </Button>
         <Router>
           <div>
             <Link to="/">Home</Link>
