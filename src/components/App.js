@@ -5,7 +5,19 @@ import { observer, inject, Provider } from "mobx-react";
 import DevTools from "mobx-react-devtools";
 import { BrowserRouter as Router, Route, Link } from "react-router-dom";
 import { apiGetComments } from "../api";
+
+import 'typeface-roboto';
+import Typography from '@material-ui/core/Typography';
 import Button from '@material-ui/core/Button';
+import { withStyles } from '@material-ui/core/styles';
+
+const styles = {
+  root: {
+    width: '100%',
+    maxWidth: 900,
+  },
+};
+
 /**
  * React hooks and mobx-react: mobx-react isn't ready for hooks;
  * -: requires a workaround: use a dedicated function component, as hooks do not support classes and inject/observe on a function do not match hooks invariant check 'Hooks can only be called inside the body of a function component'
@@ -13,12 +25,6 @@ import Button from '@material-ui/core/Button';
  */
 
 configure({ enforceActions: "always" });
-
-const Home = () => (
-  <div>
-    <h2>Home</h2>
-  </div>
-);
 
 // use function component for useEffect
 const StoryComponentFunctionComponent = ({ onShow, story, comments }) => {
@@ -78,13 +84,11 @@ const StoryComponent = inject("store")(
 
 const StoriesList = inject("store")(({ baseUrl, store: { stories } }) => (
   <div>
-    <h2>Stories</h2>
+    <Typography variant="h2" gutterBottom>Stories</Typography>
     <div>
-      {[...stories.values()].map(story => (
-        <div key={story.id}>
-          <Link to={`${baseUrl}/${story.id}`}>{story.title}</Link>
-        </div>
-      ))}
+      {[...stories.values()].map(story => (<Typography variant="h6" key={story.id} gutterBottom>
+        <Link to={`${baseUrl}/${story.id}`} key={story.id}>{story.title}</Link>
+      </Typography>))}
     </div>
   </div>
 ));
@@ -141,7 +145,7 @@ class Store {
   constructor() {
     autorun(() => {
       if (this._fetchList.length === 0) {  // touch fetchList property to register reaction
-        console.log(`Store.Fetch fetchList: empty}`);
+        console.log(`Store.Fetch fetchList: empty`);
         return;
       }
       const storyId = this.pollFetchList();
@@ -202,28 +206,20 @@ class Store {
   }
 }
 
-const BasicExample = props => {
+const BasicExample = withStyles(styles)(props => {
   return (
     <Provider store={props.store}>
       <React.Fragment>
-        <Button variant="contained" color="primary">
-          Hello World
-    </Button>
         <Router>
           <div>
-            <Link to="/">Home</Link>
-            <br />
-            <Link to="/stories">Stories</Link>
-            <hr />
-            <Route exact path="/" component={Home} />
-            <Route path="/stories" render={props => <Stories {...props} />} />
+            <Route exact path="/" render={props => <Stories {...props} />} />
           </div>
         </Router>
         <DevTools />
       </React.Fragment>
     </Provider>
   );
-};
+});
 
 const store = new Store();
 store.initStore();
