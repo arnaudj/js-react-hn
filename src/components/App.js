@@ -9,12 +9,29 @@ import { apiGetComments } from "../api";
 import 'typeface-roboto';
 import Typography from '@material-ui/core/Typography';
 import Button from '@material-ui/core/Button';
+import Card from '@material-ui/core/Card';
+import CardActions from '@material-ui/core/CardActions';
+import CardContent from '@material-ui/core/CardContent';
+import CssBaseline from '@material-ui/core/CssBaseline';
 import { withStyles } from '@material-ui/core/styles';
 
 const styles = {
-  root: {
-    width: '100%',
-    maxWidth: 900,
+  card: {
+    minWidth: 275,
+    display: 'flex',
+    flexFlow: 'row wrap',
+  },
+  cardContent: {
+    flex: '10 1 auto',
+  },
+  storyActions: {
+    flex: '1 1 auto',
+  },
+  title: {
+    fontSize: 14,
+  },
+  pos: {
+    marginBottom: 12,
   },
 };
 
@@ -82,30 +99,30 @@ const StoryComponent = inject("store")(
   })
 );
 
-const StoriesList = inject("store")(({ baseUrl, store: { stories } }) => (
+const StoriesList = inject("store")(({ baseUrl, store: { stories }, classes }) => (
   <div>
     <Typography variant="h2" gutterBottom>Stories</Typography>
     <div>
-      {[...stories.values()].map(story => (<Typography variant="h6" key={story.id} gutterBottom>
-        <Link to={`${baseUrl}/${story.id}`} key={story.id}>{story.title}</Link>
-      </Typography>))}
+      {[...stories.values()].map(story => (
+
+        <React.Fragment key={story.id}>
+          <Card className={classes.card}>
+            <CardContent className={classes.cardContent}>
+              <Typography variant="h6" gutterBottom>
+                <Link to={`${baseUrl}/${story.id}`} key={story.id}>{story.title}</Link>
+              </Typography>
+            </CardContent>
+            <CardActions className={classes.storyActions}>
+              <Button size="small" color="primary">
+                COMMENTS
+              </Button>
+            </CardActions>
+          </Card>
+        </React.Fragment>
+      ))}
     </div>
   </div>
 ));
-
-const Stories = ({ match: { url } }) => (
-  <div>
-    <Route
-      exact
-      path={`${url}/`}
-      render={props => <StoriesList baseUrl={url} {...props} />}
-    />
-    <Route
-      path={`${url}/:storyId`}
-      render={props => <StoryComponent {...props} />}
-    />
-  </div>
-);
 
 class Comment {
   id;
@@ -210,9 +227,13 @@ const BasicExample = withStyles(styles)(props => {
   return (
     <Provider store={props.store}>
       <React.Fragment>
+        <CssBaseline />
         <Router>
           <div>
-            <Route exact path="/" render={props => <Stories {...props} />} />
+            <Route exact path='/' render={routeProps => <StoriesList {...routeProps} baseUrl='story' classes={props.classes} /* forward props.classes provided by withStyles()*/ />} />
+            <Route path='/story/:storyId' render={routeProps => <StoryComponent {...routeProps} {...props} />}
+            />
+
           </div>
         </Router>
         <DevTools />
