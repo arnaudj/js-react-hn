@@ -6,36 +6,39 @@ import DevTools from "mobx-react-devtools";
 import { BrowserRouter as Router, Route, Link } from "react-router-dom";
 import { apiGetComments } from "../api";
 
-import 'typeface-roboto';
-import Typography from '@material-ui/core/Typography';
-import Button from '@material-ui/core/Button';
-import Card from '@material-ui/core/Card';
-import CardActions from '@material-ui/core/CardActions';
-import CardContent from '@material-ui/core/CardContent';
-import CssBaseline from '@material-ui/core/CssBaseline';
-import { withStyles } from '@material-ui/core/styles';
+import "typeface-roboto";
+import Typography from "@material-ui/core/Typography";
+import CssBaseline from "@material-ui/core/CssBaseline";
+import { withStyles } from "@material-ui/core/styles";
 
-const styles = {
-  card: {
-    minWidth: 275,
-    display: 'flex',
-    flexFlow: 'row wrap',
+import List from "@material-ui/core/List";
+import ListItem from "@material-ui/core/ListItem";
+import ListItemText from "@material-ui/core/ListItemText";
+import ListItemSecondaryAction from "@material-ui/core/ListItemSecondaryAction";
+
+import Badge from '@material-ui/core/Badge';
+// https://material.io/tools/icons/?icon=textsms&style=baseline
+import MailIcon from '@material-ui/icons/Mail';
+
+
+const styles = theme => ({
+  lists: {
+    backgroundColor: theme.palette.background.paper,
   },
-  cardContent: {
-    flex: '10 1 auto',
+  commentsBadge: {
+    margin: '1rem',
   },
-  storyActions: {
-    flex: '1 1 auto',
-  },
-  title: {
-    fontSize: 14,
-  },
-  pos: {
-    marginBottom: 12,
-  },
+});
+
+const storyDomain = {
+  color: 'blue'
 };
 
 /**
+ * Material-ui: 
+ * - TODO: add createMuiTheme: https://github.com/mui-org/material-ui/blob/master/examples/create-react-app-with-jss/src/withRoot.js
+ * - TODO: move styling to material-ui style (classes) for storyDomain
+ *
  * React hooks and mobx-react: mobx-react isn't ready for hooks;
  * -: requires a workaround: use a dedicated function component, as hooks do not support classes and inject/observe on a function do not match hooks invariant check 'Hooks can only be called inside the body of a function component'
  * +: component better isolated (but still staful due to useEffect)
@@ -99,30 +102,50 @@ const StoryComponent = inject("store")(
   })
 );
 
-const StoriesList = inject("store")(({ baseUrl, store: { stories }, classes }) => (
-  <div>
-    <Typography variant="h2" gutterBottom>Stories</Typography>
-    <div>
-      {[...stories.values()].map(story => (
+const StoryLink = ({ story }) => (
+  <Typography variant="body1" color="primary" gutterBottom>
+    {story.title}
+  </Typography>
+);
 
-        <React.Fragment key={story.id}>
-          <Card className={classes.card}>
-            <CardContent className={classes.cardContent}>
-              <Typography variant="h6" gutterBottom>
-                <Link to={`${baseUrl}/${story.id}`} key={story.id}>{story.title}</Link>
-              </Typography>
-            </CardContent>
-            <CardActions className={classes.storyActions}>
-              <Button size="small" color="primary">
-                COMMENTS
-              </Button>
-            </CardActions>
-          </Card>
-        </React.Fragment>
-      ))}
+
+const StoriesList = inject("store")(
+  ({ baseUrl, store: { stories }, classes }) => (
+    <div>
+      <Typography variant="h6" gutterBottom>
+        Stories
+      </Typography>
+      <div className={classes.lists}>
+        <List component="nav">
+          {[...stories.values()].map(story => (
+            <ListItem button component={props => <Link {...props} />}
+              to={`${baseUrl}/${story.id}`} key={story.id}>
+              <ListItemText
+                primary={
+                  <div style={{ display: "flex", alignItems: "center" }} /*http://howtocenterincss.com/#contentType=div&horizontal=left&vertical=middle*/>
+                    <Typography variant="h6" style={{ margin: '0.5rem' }} >
+                      {story.title}{" "}
+                    </Typography>
+                    <Typography
+                      color="textSecondary"
+                      style={storyDomain}>
+                      {" "}(google.com)
+                    </Typography>
+                  </div>
+                }
+              />
+              <ListItemSecondaryAction>
+                <Badge className={classes.commentsBadge} badgeContent={4} color="primary">
+                  <MailIcon />
+                </Badge>
+              </ListItemSecondaryAction>
+            </ListItem>
+          ))}
+        </List>
+      </div>
     </div>
-  </div>
-));
+  )
+);
 
 class Comment {
   id;
@@ -230,10 +253,25 @@ const BasicExample = withStyles(styles)(props => {
         <CssBaseline />
         <Router>
           <div>
-            <Route exact path='/' render={routeProps => <StoriesList {...routeProps} baseUrl='story' classes={props.classes} /* forward props.classes provided by withStyles()*/ />} />
-            <Route path='/story/:storyId' render={routeProps => <StoryComponent {...routeProps} {...props} />}
+            <Route
+              exact
+              path="/"
+              render={routeProps => (
+                <StoriesList
+                  {...routeProps}
+                  baseUrl="/story"
+                  classes={
+                    props.classes
+                  } /* forward props.classes provided by withStyles()*/
+                />
+              )}
             />
-
+            <Route
+              path="/story/:storyId"
+              render={routeProps => (
+                <StoryComponent {...routeProps} {...props} />
+              )}
+            />
           </div>
         </Router>
         <DevTools />
