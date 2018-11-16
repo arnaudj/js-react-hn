@@ -50,31 +50,35 @@ const styles = theme => ({
 configure({ enforceActions: "always" });
 
 // use function component for useEffect
-const StoryComponentFunctionComponent = ({ onShow, story, comments }) => {
+const StoryComponentFunctionComponent = ({ onShow, story, comments, classes }) => {
   useEffect(() => {
     onShow();
   });
 
   return (
     <div>
-      <h3>
-        Reading story {story.id}: {story.title}
-        <br />
-      </h3>
+      <StoryTitle title={`${story.title} (${story.id})`} classes={classes} />
       {story.isFetching ? (
-        <span>Loading...</span>
+        <Typography variant="body1" gutterBottom>
+          Loading...
+        </Typography>
       ) : (
         <div>
-          Story comments:
-          <br />
-          {comments.length
-            ? comments.map(comment => (
-                <div key={comment.id}>
-                  - {comment.author}: {comment.comment}
-                  <br />
-                </div>
-              ))
-            : "No comment"}
+          <Typography variant="body1" gutterBottom>
+            Story comments:
+            <br />
+          </Typography>
+          {comments.length ? (
+            comments.map(comment => (
+              <Typography variant="body1" gutterBottom key={comment.id}>
+                - {comment.author}: {comment.comment}
+              </Typography>
+            ))
+          ) : (
+            <Typography variant="body1" gutterBottom>
+              No comment...
+            </Typography>
+          )}
         </div>
       )}
     </div>
@@ -87,7 +91,8 @@ const StoryComponent = inject("store")(
       store,
       match: {
         params: { storyId }
-      }
+      },
+      classes
     } = props;
 
     const story = store.getStory(storyId);
@@ -100,14 +105,15 @@ const StoryComponent = inject("store")(
         onShow={() => store.actionUserNavigatesToStory(story.id)}
         story={story}
         comments={story.comments}
+        classes={classes}
       />
     );
   })
 );
 
-const StoryLink = ({ story }) => (
-  <Typography variant="body1" color="primary" gutterBottom>
-    {story.title}
+const StoryTitle = ({ title, classes }) => (
+  <Typography variant="h6" className={classes.storyListTitle} color="primary">
+    {title}{" "}
   </Typography>
 );
 
@@ -123,13 +129,8 @@ const StoriesList = inject("store")(({ baseUrl, store: { stories }, classes }) =
             <ListItemText
               primary={
                 <div className={classes.storyListItemWrapper}>
-                  <Typography variant="h6" className={classes.storyListTitle} color="primary">
-                    {story.title}{" "}
-                  </Typography>
-                  <Typography color="textSecondary" color="secondary">
-                    {" "}
-                    (google.com)
-                  </Typography>
+                  <StoryTitle title={story.title} classes={classes} />{" "}
+                  <Typography color="secondary"> (google.com)</Typography>
                 </div>
               }
             />
@@ -263,7 +264,10 @@ const BasicExample = withRootTheme(
                   />
                 )}
               />
-              <Route path="/story/:storyId" render={routeProps => <StoryComponent {...routeProps} {...props} />} />
+              <Route
+                path="/story/:storyId"
+                render={routeProps => <StoryComponent {...routeProps} {...props} classes={props.classes} />}
+              />
             </div>
           </Router>
           <DevTools />
