@@ -6,6 +6,7 @@ import DevTools from "mobx-react-devtools";
 import { BrowserRouter as Router, Route, Link } from "react-router-dom";
 import { apiGetComments } from "../api";
 
+import withRootTheme from "../withRootTheme";
 import "typeface-roboto";
 import Typography from "@material-ui/core/Typography";
 import CssBaseline from "@material-ui/core/CssBaseline";
@@ -34,9 +35,6 @@ const styles = theme => ({
   },
   storyListTitle: {
     margin: "0.5rem"
-  },
-  storyListDomain: {
-    color: "blue"
   }
 });
 
@@ -125,10 +123,10 @@ const StoriesList = inject("store")(({ baseUrl, store: { stories }, classes }) =
             <ListItemText
               primary={
                 <div className={classes.storyListItemWrapper}>
-                  <Typography variant="h6" className={classes.storyListTitle}>
+                  <Typography variant="h6" className={classes.storyListTitle} color="primary">
                     {story.title}{" "}
                   </Typography>
-                  <Typography color="textSecondary" className={classes.storyListDomain}>
+                  <Typography color="textSecondary" color="secondary">
                     {" "}
                     (google.com)
                   </Typography>
@@ -246,32 +244,34 @@ class Store {
   }
 }
 
-const BasicExample = withStyles(styles)(props => {
-  return (
-    <Provider store={props.store}>
-      <React.Fragment>
-        <CssBaseline />
-        <Router>
-          <div>
-            <Route
-              exact
-              path="/"
-              render={routeProps => (
-                <StoriesList
-                  {...routeProps}
-                  baseUrl="/story"
-                  classes={props.classes} /* forward props.classes provided by withStyles()*/
-                />
-              )}
-            />
-            <Route path="/story/:storyId" render={routeProps => <StoryComponent {...routeProps} {...props} />} />
-          </div>
-        </Router>
-        <DevTools />
-      </React.Fragment>
-    </Provider>
-  );
-});
+const BasicExample = withRootTheme(
+  withStyles(styles)(props => {
+    return (
+      <Provider store={props.store}>
+        <React.Fragment>
+          <CssBaseline />
+          <Router>
+            <div>
+              <Route
+                exact
+                path="/"
+                render={routeProps => (
+                  <StoriesList
+                    {...routeProps}
+                    baseUrl="/story"
+                    classes={props.classes} /* forward props.classes provided by withStyles()*/
+                  />
+                )}
+              />
+              <Route path="/story/:storyId" render={routeProps => <StoryComponent {...routeProps} {...props} />} />
+            </div>
+          </Router>
+          <DevTools />
+        </React.Fragment>
+      </Provider>
+    );
+  })
+);
 
 const store = new Store();
 store.initStore();
