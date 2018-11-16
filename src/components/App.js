@@ -16,28 +16,33 @@ import ListItem from "@material-ui/core/ListItem";
 import ListItemText from "@material-ui/core/ListItemText";
 import ListItemSecondaryAction from "@material-ui/core/ListItemSecondaryAction";
 
-import Badge from '@material-ui/core/Badge';
+import Badge from "@material-ui/core/Badge";
 // https://material.io/tools/icons/?icon=textsms&style=baseline
-import MailIcon from '@material-ui/icons/Mail';
-
+import MailIcon from "@material-ui/icons/Mail";
 
 const styles = theme => ({
   lists: {
-    backgroundColor: theme.palette.background.paper,
+    backgroundColor: theme.palette.background.paper
   },
   commentsBadge: {
-    margin: '1rem',
+    margin: "1rem"
   },
+  storyListItemWrapper: {
+    /*http://howtocenterincss.com/#contentType=div&horizontal=left&vertical=middle*/
+    display: "flex",
+    alignItems: "center"
+  },
+  storyListTitle: {
+    margin: "0.5rem"
+  },
+  storyListDomain: {
+    color: "blue"
+  }
 });
 
-const storyDomain = {
-  color: 'blue'
-};
-
 /**
- * Material-ui: 
+ * Material-ui:
  * - TODO: add createMuiTheme: https://github.com/mui-org/material-ui/blob/master/examples/create-react-app-with-jss/src/withRoot.js
- * - TODO: move styling to material-ui style (classes) for storyDomain
  *
  * React hooks and mobx-react: mobx-react isn't ready for hooks;
  * -: requires a workaround: use a dedicated function component, as hooks do not support classes and inject/observe on a function do not match hooks invariant check 'Hooks can only be called inside the body of a function component'
@@ -61,19 +66,19 @@ const StoryComponentFunctionComponent = ({ onShow, story, comments }) => {
       {story.isFetching ? (
         <span>Loading...</span>
       ) : (
-          <div>
-            Story comments:
+        <div>
+          Story comments:
           <br />
-            {comments.length
-              ? comments.map(comment => (
+          {comments.length
+            ? comments.map(comment => (
                 <div key={comment.id}>
                   - {comment.author}: {comment.comment}
                   <br />
                 </div>
               ))
-              : "No comment"}
-          </div>
-        )}
+            : "No comment"}
+        </div>
+      )}
     </div>
   );
 };
@@ -108,44 +113,39 @@ const StoryLink = ({ story }) => (
   </Typography>
 );
 
-
-const StoriesList = inject("store")(
-  ({ baseUrl, store: { stories }, classes }) => (
-    <div>
-      <Typography variant="h6" gutterBottom>
-        Stories
-      </Typography>
-      <div className={classes.lists}>
-        <List component="nav">
-          {[...stories.values()].map(story => (
-            <ListItem button component={props => <Link {...props} />}
-              to={`${baseUrl}/${story.id}`} key={story.id}>
-              <ListItemText
-                primary={
-                  <div style={{ display: "flex", alignItems: "center" }} /*http://howtocenterincss.com/#contentType=div&horizontal=left&vertical=middle*/>
-                    <Typography variant="h6" style={{ margin: '0.5rem' }} >
-                      {story.title}{" "}
-                    </Typography>
-                    <Typography
-                      color="textSecondary"
-                      style={storyDomain}>
-                      {" "}(google.com)
-                    </Typography>
-                  </div>
-                }
-              />
-              <ListItemSecondaryAction>
-                <Badge className={classes.commentsBadge} badgeContent={4} color="primary">
-                  <MailIcon />
-                </Badge>
-              </ListItemSecondaryAction>
-            </ListItem>
-          ))}
-        </List>
-      </div>
+const StoriesList = inject("store")(({ baseUrl, store: { stories }, classes }) => (
+  <div>
+    <Typography variant="h6" gutterBottom>
+      Stories
+    </Typography>
+    <div className={classes.lists}>
+      <List component="nav">
+        {[...stories.values()].map(story => (
+          <ListItem button component={props => <Link {...props} />} to={`${baseUrl}/${story.id}`} key={story.id}>
+            <ListItemText
+              primary={
+                <div className={classes.storyListItemWrapper}>
+                  <Typography variant="h6" className={classes.storyListTitle}>
+                    {story.title}{" "}
+                  </Typography>
+                  <Typography color="textSecondary" className={classes.storyListDomain}>
+                    {" "}
+                    (google.com)
+                  </Typography>
+                </div>
+              }
+            />
+            <ListItemSecondaryAction>
+              <Badge className={classes.commentsBadge} badgeContent={4} color="primary">
+                <MailIcon />
+              </Badge>
+            </ListItemSecondaryAction>
+          </ListItem>
+        ))}
+      </List>
     </div>
-  )
-);
+  </div>
+));
 
 class Comment {
   id;
@@ -260,18 +260,11 @@ const BasicExample = withStyles(styles)(props => {
                 <StoriesList
                   {...routeProps}
                   baseUrl="/story"
-                  classes={
-                    props.classes
-                  } /* forward props.classes provided by withStyles()*/
+                  classes={props.classes} /* forward props.classes provided by withStyles()*/
                 />
               )}
             />
-            <Route
-              path="/story/:storyId"
-              render={routeProps => (
-                <StoryComponent {...routeProps} {...props} />
-              )}
-            />
+            <Route path="/story/:storyId" render={routeProps => <StoryComponent {...routeProps} {...props} />} />
           </div>
         </Router>
         <DevTools />
@@ -283,8 +276,5 @@ const BasicExample = withStyles(styles)(props => {
 const store = new Store();
 store.initStore();
 
-ReactDOM.render(
-  <BasicExample store={store} />,
-  document.getElementById("root")
-);
+ReactDOM.render(<BasicExample store={store} />, document.getElementById("root"));
 export default BasicExample;
