@@ -69,11 +69,7 @@ const StoryComponentFunctionComponent = ({ onShow, story, comments, classes }) =
             <br />
           </Typography>
           {comments.length ? (
-            comments.map(comment => (
-              <Typography variant="body1" gutterBottom key={comment.id}>
-                - {comment.author}: {comment.comment}
-              </Typography>
-            ))
+            comments.map(comment => <StoryCommentComponent comment={comment} level={0} />)
           ) : (
             <Typography variant="body1" gutterBottom>
               No comment...
@@ -84,6 +80,19 @@ const StoryComponentFunctionComponent = ({ onShow, story, comments, classes }) =
     </div>
   );
 };
+
+const StoryCommentComponent = ({ comment, level }) => (
+  <Typography variant="body1" gutterBottom key={comment.id} style={{ marginLeft: `${level * 0.4}em` }}>
+    + {comment.author}: {comment.comment}
+    {comment.children ? (
+      <div>
+        {comment.children.map(child => (
+          <StoryCommentComponent comment={child} level={level + 1} />
+        ))}
+      </div>
+    ) : null}
+  </Typography>
+);
 
 const StoryComponent = inject("store")(
   observer(function doit(props) {
