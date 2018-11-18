@@ -4,7 +4,7 @@ import { observable, action, configure, runInAction, autorun } from "mobx";
 import { observer, inject, Provider } from "mobx-react";
 import DevTools from "mobx-react-devtools";
 import { BrowserRouter as Router, Route, Link } from "react-router-dom";
-import { apiGetComments } from "../api";
+import { apiGetFrontPage, apiGetComments } from "../api";
 
 import withRootTheme from "../withRootTheme";
 import "typeface-roboto";
@@ -50,26 +50,30 @@ const styles = theme => ({
 configure({ enforceActions: "always" });
 
 // use function component for useEffect
-const StoryComponentFunctionComponent = ({ onShow, story, comments, classes }) => {
-  useEffect(() => {
-    onShow();
-  });
+const StoryComponentFunctionComponent = ({ onShow, story, isColdBoot, classes }) => {
+  useEffect(
+    () => {
+      onShow();
+    },
+    [!isColdBoot ? story.num_comments : -1] // inputs (ala selector); LOW use as cache expiry bust
+  );
 
   return (
     <div>
-      <StoryTitle title={`${story.title} (${story.id})`} classes={classes} />
-      {story.isFetching ? (
+      {// story is null when straight to story view & index is skipped
+      isColdBoot || story.isFetching ? (
         <Typography variant="body1" gutterBottom>
           Loading...
         </Typography>
       ) : (
         <div>
+          <StoryTitle title={`${story.title} (${story.id})`} classes={classes} />
           <Typography variant="body1" gutterBottom>
             Story comments:
             <br />
           </Typography>
-          {comments.length ? (
-            comments.map(comment => <StoryCommentComponent comment={comment} level={0} />)
+          {story.comments.length ? (
+            story.comments.map(comment => <StoryCommentComponent comment={comment} level={0} />)
           ) : (
             <Typography variant="body1" gutterBottom>
               No comment...
@@ -81,18 +85,20 @@ const StoryComponentFunctionComponent = ({ onShow, story, comments, classes }) =
   );
 };
 
-const StoryCommentComponent = ({ comment, level }) => (
-  <Typography variant="body1" gutterBottom key={comment.id} style={{ marginLeft: `${level * 0.4}em` }}>
-    + {comment.author}: {comment.comment}
-    {comment.children ? (
-      <div>
-        {comment.children.map(child => (
-          <StoryCommentComponent comment={child} level={level + 1} />
-        ))}
-      </div>
-    ) : null}
-  </Typography>
-);
+const StoryCommentComponent = ({ comment, level }) =>
+  comment.author ? ( // filter empty comments
+    <Typography variant="body1" gutterBottom key={comment.id} style={{ marginLeft: `${level * 0.7}em` }}>
+      [-] <u>{comment.author}</u> at {comment.created_at} ({comment.children ? comment.children.length : 0} children):
+      <div dangerouslySetInnerHTML={{ __html: comment.text }} style={{ marginLeft: `${level * 0.7 + 0.2}em` }} />
+      {comment.children ? (
+        <div>
+          {comment.children.map(child => (
+            <StoryCommentComponent comment={child} level={level + 1} />
+          ))}
+        </div>
+      ) : null}
+    </Typography>
+  ) : null;
 
 const StoryComponent = inject("store")(
   observer(function doit(props) {
@@ -105,15 +111,18 @@ const StoryComponent = inject("store")(
     } = props;
 
     const story = store.getStory(storyId);
+    const isColdBoot = !story; // story is null when straight to story view & index is skipped
+
     // hit array property now to register observer atom (within render's immediate body and don't hide behind isLoading either)
     // Because observer only applies to exactly the render function of the current component; passing a render callback or component to a child component doesn't become reactive automatically
     // https://github.com/mobxjs/mobx/blob/gh-pages/docs/best/react.md#mobx-only-tracks-data-accessed-for-observer-components-if-they-are-directly-accessed-by-render
-    const hasComments = story.comments.length;
+    const nbCommentsInStore = !isColdBoot ? story.comments.length : -1;
+
     return (
       <StoryComponentFunctionComponent
-        onShow={() => store.actionUserNavigatesToStory(story.id)}
+        onShow={() => store.actionUserNavigatesToStory(storyId)}
         story={story}
-        comments={story.comments}
+        isColdBoot={isColdBoot}
         classes={classes}
       />
     );
@@ -126,40 +135,57 @@ const StoryTitle = ({ title, classes }) => (
   </Typography>
 );
 
-const StoriesList = inject("store")(({ baseUrl, store: { stories }, classes }) => (
-  <div>
-    <Typography variant="h6" gutterBottom>
-      Stories
-    </Typography>
-    <div className={classes.lists}>
-      <List component="nav">
-        {[...stories.values()].map(story => (
-          <ListItem button component={props => <Link {...props} />} to={`${baseUrl}/${story.id}`} key={story.id}>
-            <ListItemText
-              primary={
-                <div className={classes.storyListItemWrapper}>
-                  <StoryTitle title={story.title} classes={classes} />{" "}
-                  <Typography color="secondary"> (google.com)</Typography>
-                </div>
-              }
-            />
-            <ListItemSecondaryAction>
-              <Badge className={classes.commentsBadge} badgeContent={4} color="primary">
-                <MailIcon />
-              </Badge>
-            </ListItemSecondaryAction>
-          </ListItem>
-        ))}
-      </List>
-    </div>
-  </div>
-));
+function extractDomain(url) {
+  // https://stackoverflow.com/a/8498629
+  var matches = url.match(/^https?\:\/\/([^\/?#]+)(?:[\/?#]|$)/i);
+  var domain = matches && matches[1]; // domain will be null if no match is found
+  return domain || url;
+}
+
+const StoriesList = inject("store")(
+  observer(({ baseUrl, store: { stories }, classes }) => {
+    const hasStories = store.stories.size > 0; // hit array property now to register observer atom
+    const mapDomain = story => (!story.title.startsWith("Ask HN") ? extractDomain(story.url) : null);
+    return (
+      <div>
+        <Typography variant="h6" gutterBottom>
+          {hasStories ? "Stories" : "Loading stories..."}
+        </Typography>
+        <div className={classes.lists}>
+          <List component="nav">
+            {[...stories.values()].map(story => (
+              <ListItem button component={props => <Link {...props} />} to={`${baseUrl}/${story.id}`} key={story.id}>
+                <ListItemText
+                  primary={
+                    <div className={classes.storyListItemWrapper}>
+                      <StoryTitle title={story.title} classes={classes} />{" "}
+                      <Typography color="secondary">{mapDomain(story)} </Typography>
+                    </div>
+                  }
+                />
+                <ListItemSecondaryAction>
+                  <Badge className={classes.commentsBadge} badgeContent={story.num_comments} color="primary">
+                    <MailIcon />
+                  </Badge>
+                </ListItemSecondaryAction>
+              </ListItem>
+            ))}
+          </List>
+        </div>
+      </div>
+    );
+  })
+);
 
 class Comment {
   id;
-  storyId;
-  text;
+  created_at;
   author;
+  parent_id;
+  story_id;
+  text;
+  type;
+  children;
 
   constructor(jsonSource) {
     Object.assign(this, jsonSource); // Q&D assign from json
@@ -169,19 +195,23 @@ class Comment {
 // prettier-ignore
 class Story {
   @observable id;
+  @observable created_at;
   @observable title;
   @observable author;
+  @observable url;
+  @observable points;
+  @observable num_comments;
   @observable comments = [];
 
-  constructor(id, title, author) {
-    this.id = id;
-    this.title = title;
-    this.author = author;
+  constructor(storyJson) {
+    // const { objectID: id, created_at, title, author, url, points, num_comments } = storyJson;
+    Object.assign(this, storyJson);
+    this.id = this.objectID;
   }
 
   @action.bound
-  addComment(comment) {
-    this.comments.push(new Comment(comment));
+  addComment(commentJson) {
+    this.comments.push(new Comment(commentJson));
   }
 }
 
@@ -198,11 +228,18 @@ class Store {
       }
       const storyId = this.pollFetchList();
 
-      if (this.getStory(storyId).comments.length) {
+      let story = this.getStory(storyId);
+      if (!story){
+        runInAction(() => {
+          story = this.addStory(new Story({objectID: storyId}));
+        });
+      }
+
+      if (story.comments.length) {
         console.log(`Fetch for ${storyId}: cache hit`);
         return;
       }
-      const story = this.getStory(storyId);
+      
       if (story.isFetching) {
         console.log(`Fetch for ${storyId}: already fetching`);
         return;
@@ -213,7 +250,10 @@ class Store {
       apiGetComments(storyId).then(json => {
         runInAction("apiGetCommentsSuccess", () => {
           const story = this.getStory(storyId);
-          for (let commentJson of json)
+          console.log('apiGetCommentsSuccess: story: ', story)
+          console.log('apiGetCommentsSuccess: comments: ', json)
+          const comments = json.children;
+          for (let commentJson of comments)
             story.addComment(commentJson);
           story.isFetching = false;
           console.log(`Fetch for ${storyId} complete: `, story);
@@ -223,17 +263,23 @@ class Store {
   }
 
   @action.bound
-  initStore() {
-    this.addStory(1000, "A story", "john");
-    this.addStory(1001, "Another story", "jane");
-    this.getStory(1000).addComment({ id: 5000, storyId: 1000, comment: "A comment", author: "jake" });
+  loadStories() {
+    apiGetFrontPage().then(stories => this.initStore(stories));
+  }
+
+  @action.bound
+  initStore(json) {
+    console.log('initStore: ', json);
+    json.hits.forEach(storyJson => {
+      this.addStory(new Story(storyJson))
+    });
   }
 
   @action.bound
   actionUserNavigatesToStory(id) {
     console.log(
       "actionUserNavigatesToStory(): go");
-    this._fetchList.push(Number(id));
+    this._fetchList.push(id);
     console.log(
       "actionUserNavigatesToStory(): after: _fetchList: " + this._fetchList
     );
@@ -245,12 +291,16 @@ class Store {
   }
 
   getStory(storyId) {
-    return this.stories.get(Number(storyId));
+    return this.stories.get(storyId);
   }
 
+  // {created_at: "2018-11-17T13:27:56.000Z", title: "Story of a failed pentest", 
+  //url: "https://threader.app/thread/1063423110513418240", 
+  //author: "mariedm", points: 928, …}
   @action.bound
-  addStory(id, title, author) {
-    this.stories.set(id, new Story(id, title, author));
+  addStory(story) {
+    this.stories.set(story.id, story);
+    return story;
   }
 }
 
@@ -287,7 +337,7 @@ const BasicExample = withRootTheme(
 );
 
 const store = new Store();
-store.initStore();
+store.loadStories();
 
 ReactDOM.render(<BasicExample store={store} />, document.getElementById("root"));
 export default BasicExample;
