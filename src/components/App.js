@@ -1,3 +1,9 @@
+// TODO Make comments expandable/collapsible
+// TODO Make story link clickable to website url
+// FIXME When story is loading its comments: should display "Loading..." not "No comment"
+// FIXME Bug when going straight to story page: avoid hitting REST story load more than once during story loading phase ('actionUserNavigatesToStory(): go' seem to happen after each refresh via onShow: 2nd call is debounced with isFetching, but 3rd calls happens after: set a lastLoadedTime epoch on story or change loading design?)
+// Bug: Filter dead comments (seems not possible with this API)
+
 import ReactDOM from "react-dom";
 import React, { useEffect } from "react";
 import { observable, action, configure, runInAction, autorun } from "mobx";
@@ -61,26 +67,26 @@ const StoryComponentFunctionComponent = ({ onShow, story, isColdBoot, classes })
   return (
     <div>
       {// story is null when straight to story view & index is skipped
-      isColdBoot || story.isFetching ? (
-        <Typography variant="body1" gutterBottom>
-          Loading...
-        </Typography>
-      ) : (
-        <div>
-          <StoryTitle title={`${story.title} (${story.id})`} classes={classes} />
+        isColdBoot || story.isFetching ? (
           <Typography variant="body1" gutterBottom>
-            Story comments:
+            Loading...
+        </Typography>
+        ) : (
+            <div>
+              <StoryTitle title={`${story.title} (${story.id})`} classes={classes} />
+              <Typography variant="body1" gutterBottom>
+                Story comments:
             <br />
-          </Typography>
-          {story.comments.length ? (
-            story.comments.map(comment => <StoryCommentComponent comment={comment} level={0} />)
-          ) : (
-            <Typography variant="body1" gutterBottom>
-              No comment...
+              </Typography>
+              {story.comments.length ? (
+                story.comments.map(comment => <StoryCommentComponent comment={comment} level={0} key={comment.id} />)
+              ) : (
+                  <Typography variant="body1" gutterBottom>
+                    No comment...
             </Typography>
+                )}
+            </div>
           )}
-        </div>
-      )}
     </div>
   );
 };
@@ -136,6 +142,9 @@ const StoryTitle = ({ title, classes }) => (
 );
 
 function extractDomain(url) {
+  if (url == null || url.startsWith("Ask HN") || url.startsWith("Tell HN"))
+    return null;
+
   // https://stackoverflow.com/a/8498629
   var matches = url.match(/^https?\:\/\/([^\/?#]+)(?:[\/?#]|$)/i);
   var domain = matches && matches[1]; // domain will be null if no match is found
@@ -145,7 +154,7 @@ function extractDomain(url) {
 const StoriesList = inject("store")(
   observer(({ baseUrl, store: { stories }, classes }) => {
     const hasStories = store.stories.size > 0; // hit array property now to register observer atom
-    const mapDomain = story => (!story.title.startsWith("Ask HN") ? extractDomain(story.url) : null);
+    const mapDomain = story => extractDomain(story.url);
     return (
       <div>
         <Typography variant="h6" gutterBottom>
@@ -179,16 +188,17 @@ const StoriesList = inject("store")(
 
 class Comment {
   id;
-  created_at;
   author;
+  comment_text;
+  created_at;
+  created_at_i;
   parent_id;
   story_id;
-  text;
-  type;
   children;
 
   constructor(jsonSource) {
     Object.assign(this, jsonSource); // Q&D assign from json
+    this.id = this.objectID;
   }
 }
 
@@ -196,6 +206,7 @@ class Comment {
 class Story {
   @observable id;
   @observable created_at;
+  @observable created_at_i;
   @observable title;
   @observable author;
   @observable url;
@@ -229,9 +240,9 @@ class Store {
       const storyId = this.pollFetchList();
 
       let story = this.getStory(storyId);
-      if (!story){
+      if (!story) {
         runInAction(() => {
-          story = this.addStory(new Story({objectID: storyId}));
+          story = this.addStory(new Story({ objectID: storyId }));
         });
       }
 
@@ -239,7 +250,7 @@ class Store {
         console.log(`Fetch for ${storyId}: cache hit`);
         return;
       }
-      
+
       if (story.isFetching) {
         console.log(`Fetch for ${storyId}: already fetching`);
         return;
@@ -252,7 +263,7 @@ class Store {
           const story = this.getStory(storyId);
           console.log('apiGetCommentsSuccess: story: ', story)
           console.log('apiGetCommentsSuccess: comments: ', json)
-          const comments = json.children;
+          const comments = json.data.children;
           for (let commentJson of comments)
             story.addComment(commentJson);
           story.isFetching = false;
@@ -264,13 +275,13 @@ class Store {
 
   @action.bound
   loadStories() {
-    apiGetFrontPage().then(stories => this.initStore(stories));
+    apiGetFrontPage().then(stories => this.initStore(stories.data.hits));
   }
 
   @action.bound
   initStore(json) {
     console.log('initStore: ', json);
-    json.hits.forEach(storyJson => {
+    json.forEach(storyJson => {
       this.addStory(new Story(storyJson))
     });
   }
@@ -294,9 +305,6 @@ class Store {
     return this.stories.get(storyId);
   }
 
-  // {created_at: "2018-11-17T13:27:56.000Z", title: "Story of a failed pentest", 
-  //url: "https://threader.app/thread/1063423110513418240", 
-  //author: "mariedm", points: 928, …}
   @action.bound
   addStory(story) {
     this.stories.set(story.id, story);
