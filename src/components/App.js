@@ -6,7 +6,7 @@
 
 import ReactDOM from "react-dom";
 import React, { useEffect } from "react";
-import { observable, action, configure, runInAction, autorun } from "mobx";
+import { observable, action, configure, runInAction, computed } from "mobx";
 import { observer, inject, Provider } from "mobx-react";
 import DevTools from "mobx-react-devtools";
 import { BrowserRouter as Router, Route, Link } from "react-router-dom";
@@ -56,37 +56,34 @@ const styles = theme => ({
 configure({ enforceActions: "always" });
 
 // use function component for useEffect
-const StoryComponentFunctionComponent = ({ onShow, story, isColdBoot, classes }) => {
-  useEffect(
-    () => {
-      onShow();
-    },
-    [!isColdBoot ? story.num_comments : -1] // inputs (ala selector); LOW use as cache expiry bust
-  );
+const StoryComponentFunctionComponent = ({ onShow, story, classes }) => {
+  useEffect(() => {
+    onShow();
+  });
 
   return (
     <div>
       {// story is null when straight to story view & index is skipped
-        isColdBoot || story.isFetching ? (
-          <Typography variant="body1" gutterBottom>
-            Loading...
+      story.isFetching || story.isFetching === undefined ? ( // loading already or cold boot and about to be loading right away
+        <Typography variant="body1" gutterBottom>
+          Loading...
         </Typography>
-        ) : (
-            <div>
-              <StoryTitle title={`${story.title} (${story.id})`} classes={classes} />
-              <Typography variant="body1" gutterBottom>
-                Story comments:
+      ) : (
+        <div>
+          <StoryTitle title={`${story.title} (${story.id})`} classes={classes} />
+          <Typography variant="body1" gutterBottom>
+            Story comments:
             <br />
-              </Typography>
-              {story.comments.length ? (
-                story.comments.map(comment => <StoryCommentComponent comment={comment} level={0} key={comment.id} />)
-              ) : (
-                  <Typography variant="body1" gutterBottom>
-                    No comment...
+          </Typography>
+          {story.comments.length ? (
+            story.comments.map(comment => <StoryCommentComponent comment={comment} level={0} key={comment.id} />)
+          ) : (
+            <Typography variant="body1" gutterBottom>
+              No comment...
             </Typography>
-                )}
-            </div>
           )}
+        </div>
+      )}
     </div>
   );
 };
@@ -116,19 +113,16 @@ const StoryComponent = inject("store")(
       classes
     } = props;
 
-    const story = store.getStory(storyId);
-    const isColdBoot = !story; // story is null when straight to story view & index is skipped
-
-    // hit array property now to register observer atom (within render's immediate body and don't hide behind isLoading either)
+    const story = store.getOrCreateStory(storyId);
+    // hit array property now to register observer atom (within render's immediate body and don't hide behind loading flag either)
     // Because observer only applies to exactly the render function of the current component; passing a render callback or component to a child component doesn't become reactive automatically
     // https://github.com/mobxjs/mobx/blob/gh-pages/docs/best/react.md#mobx-only-tracks-data-accessed-for-observer-components-if-they-are-directly-accessed-by-render
-    const nbCommentsInStore = !isColdBoot ? story.comments.length : -1;
+    const watchMe = story.fingerprint;
 
     return (
       <StoryComponentFunctionComponent
         onShow={() => store.actionUserNavigatesToStory(storyId)}
         story={story}
-        isColdBoot={isColdBoot}
         classes={classes}
       />
     );
@@ -142,8 +136,7 @@ const StoryTitle = ({ title, classes }) => (
 );
 
 function extractDomain(url) {
-  if (url == null || url.startsWith("Ask HN") || url.startsWith("Tell HN"))
-    return null;
+  if (url == null || url.startsWith("Ask HN") || url.startsWith("Tell HN")) return null;
 
   // https://stackoverflow.com/a/8498629
   var matches = url.match(/^https?\:\/\/([^\/?#]+)(?:[\/?#]|$)/i);
@@ -213,6 +206,9 @@ class Story {
   @observable points;
   @observable num_comments;
   @observable comments = [];
+  //
+  @observable isFetching;
+  @observable fetchTime;
 
   constructor(storyJson) {
     // const { objectID: id, created_at, title, author, url, points, num_comments } = storyJson;
@@ -224,54 +220,20 @@ class Story {
   addComment(commentJson) {
     this.comments.push(new Comment(commentJson));
   }
+
+  @computed get fingerprint() {
+    return JSON.stringify({
+      id: this.id,
+      isFetching: this.isFetching,
+      fetchTime: this.fetchTime,
+      num_comments: this.num_comments
+    });
+  }
 }
 
 // prettier-ignore
 class Store {
   @observable stories = new Map();
-  @observable _fetchList = [];
-
-  constructor() {
-    autorun(() => {
-      if (this._fetchList.length === 0) {  // touch fetchList property to register reaction
-        console.log(`Store.Fetch fetchList: empty`);
-        return;
-      }
-      const storyId = this.pollFetchList();
-
-      let story = this.getStory(storyId);
-      if (!story) {
-        runInAction(() => {
-          story = this.addStory(new Story({ objectID: storyId }));
-        });
-      }
-
-      if (story.comments.length) {
-        console.log(`Fetch for ${storyId}: cache hit`);
-        return;
-      }
-
-      if (story.isFetching) {
-        console.log(`Fetch for ${storyId}: already fetching`);
-        return;
-      }
-
-      console.log(`Fetch for ${storyId}: querying API...`);
-      runInAction(() => (story.isFetching = true));
-      apiGetComments(storyId).then(json => {
-        runInAction("apiGetCommentsSuccess", () => {
-          const story = this.getStory(storyId);
-          console.log('apiGetCommentsSuccess: story: ', story)
-          console.log('apiGetCommentsSuccess: comments: ', json)
-          const comments = json.data.children;
-          for (let commentJson of comments)
-            story.addComment(commentJson);
-          story.isFetching = false;
-          console.log(`Fetch for ${storyId} complete: `, story);
-        });
-      });
-    });
-  }
 
   @action.bound
   loadStories() {
@@ -282,23 +244,8 @@ class Store {
   initStore(json) {
     console.log('initStore: ', json);
     json.forEach(storyJson => {
-      this.addStory(new Story(storyJson))
+        this.addStory(new Story(storyJson))
     });
-  }
-
-  @action.bound
-  actionUserNavigatesToStory(id) {
-    console.log(
-      "actionUserNavigatesToStory(): go");
-    this._fetchList.push(id);
-    console.log(
-      "actionUserNavigatesToStory(): after: _fetchList: " + this._fetchList
-    );
-  }
-
-  @action.bound
-  pollFetchList() {
-    return this._fetchList.shift();
   }
 
   getStory(storyId) {
@@ -306,7 +253,59 @@ class Store {
   }
 
   @action.bound
+  getOrCreateStory(storyId) {
+    const story = this.getStory(storyId);
+    return story ? story : this.addStory(new Story({ objectID: storyId, comments: []}));
+  }
+
+  @action.bound
+  actionUserNavigatesToStory(storyId) {
+    const story = this.getOrCreateStory(storyId);
+
+    if (story.isFetching) {
+      console.log(`Fetch for ${storyId}: already fetching`);
+      return;
+    }
+
+    if (story.fetchTime) { // todo cache bust
+      console.log(`Fetch for ${storyId}: cache hit`);
+      // story.comments.length may be empty at this point if no comment in story at the time
+      return;
+    }
+
+    console.log(`Fetch for ${storyId}: querying API...`);
+    story.isFetching = true;
+    story.fetchTime = Date.now();
+  
+    apiGetComments(storyId).then(json => {
+      runInAction("apiGetCommentsSuccess", () => {
+        const story = this.getStory(storyId);
+        console.log('apiGetCommentsSuccess: story: ', story)
+        console.log('apiGetCommentsSuccess: comments: ', json)
+        const comments = json.data.children;
+        for (let commentJson of comments)
+          story.addComment(commentJson);
+        story.isFetching = false;
+        console.log(`Fetch for ${storyId} complete at ${Date.now()} : `, story);
+      });
+    });
+  
+    return story;
+  }
+
+  @action.bound
   addStory(story) {
+    const existing = this.stories.get(story.id);
+    if (existing) {
+      // can happen when index is bypassed, if getComments run first and then initStore
+      // merge but don't overwrite fetch status flags, that where reinflated from default in new story's ctor (@observable fields)
+      const { isFetching, fetchTime } = existing;
+      const ret = Object.assign(existing, story);
+      ret.isFetching = isFetching;
+      ret.fetchTime = fetchTime;
+      return ret;
+    }
+
     this.stories.set(story.id, story);
     return story;
   }
