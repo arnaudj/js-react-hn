@@ -1,8 +1,8 @@
 # HN React client
 
-## Done
-- Experiment with react hooks
+A simple HN client based on react, mobx and Algolia API.
 
-## TODOs
+## Done
+- Experiment with mobx store logic
+- Experiment with mobx and react hooks combined (cf [mobx-react #588](https://github.com/mobxjs/mobx-react/issues/588))
 - Material design
-- API: https://hn.algolia.com/api

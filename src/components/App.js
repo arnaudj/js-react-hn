@@ -1,7 +1,5 @@
 // TODO Make comments expandable/collapsible
 // TODO Make story link clickable to website url
-// FIXME When story is loading its comments: should display "Loading..." not "No comment"
-// FIXME Bug when going straight to story page: avoid hitting REST story load more than once during story loading phase ('actionUserNavigatesToStory(): go' seem to happen after each refresh via onShow: 2nd call is debounced with isFetching, but 3rd calls happens after: set a lastLoadedTime epoch on story or change loading design?)
 // Bug: Filter dead comments (seems not possible with this API)
 
 import ReactDOM from "react-dom";
