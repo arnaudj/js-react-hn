@@ -25,6 +25,10 @@ import Badge from "@material-ui/core/Badge";
 // https://material.io/tools/icons/?icon=textsms&style=baseline
 import MailIcon from "@material-ui/icons/Mail";
 
+//
+import ApolloClient from "apollo-boost";
+import gql from "graphql-tag";
+
 const styles = theme => ({
   lists: {
     backgroundColor: theme.palette.background.paper
@@ -62,26 +66,26 @@ const StoryComponentFunctionComponent = ({ onShow, story, classes }) => {
   return (
     <div>
       {// story is null when straight to story view & index is skipped
-      story.isFetching || story.isFetching === undefined ? ( // loading already or cold boot and about to be loading right away
-        <Typography variant="body1" gutterBottom>
-          Loading...
-        </Typography>
-      ) : (
-        <div>
-          <StoryTitle title={`${story.title} (${story.id})`} classes={classes} />
+        story.isFetching || story.isFetching === undefined ? ( // loading already or cold boot and about to be loading right away
           <Typography variant="body1" gutterBottom>
-            Story comments:
+            Loading...
+        </Typography>
+        ) : (
+            <div>
+              <StoryTitle title={`${story.title} (${story.id})`} classes={classes} />
+              <Typography variant="body1" gutterBottom>
+                Story comments:
             <br />
-          </Typography>
-          {story.comments.length ? (
-            story.comments.map(comment => <StoryCommentComponent comment={comment} level={0} key={comment.id} />)
-          ) : (
-            <Typography variant="body1" gutterBottom>
-              No comment...
+              </Typography>
+              {story.comments.length ? (
+                story.comments.map(comment => <StoryCommentComponent comment={comment} level={0} key={comment.id} />)
+              ) : (
+                  <Typography variant="body1" gutterBottom>
+                    No comment...
             </Typography>
+                )}
+            </div>
           )}
-        </div>
-      )}
     </div>
   );
 };
@@ -242,7 +246,7 @@ class Store {
   initStore(json) {
     console.log('initStore: ', json);
     json.forEach(storyJson => {
-        this.addStory(new Story(storyJson))
+      this.addStory(new Story(storyJson))
     });
   }
 
@@ -253,7 +257,7 @@ class Store {
   @action.bound
   getOrCreateStory(storyId) {
     const story = this.getStory(storyId);
-    return story ? story : this.addStory(new Story({ objectID: storyId, comments: []}));
+    return story ? story : this.addStory(new Story({ objectID: storyId, comments: [] }));
   }
 
   @action.bound
@@ -274,7 +278,7 @@ class Store {
     console.log(`Fetch for ${storyId}: querying API...`);
     story.isFetching = true;
     story.fetchTime = Date.now();
-  
+
     apiGetComments(storyId).then(json => {
       runInAction("apiGetCommentsSuccess", () => {
         const story = this.getStory(storyId);
@@ -287,7 +291,7 @@ class Store {
         console.log(`Fetch for ${storyId} complete at ${Date.now()} : `, story);
       });
     });
-  
+
     return story;
   }
 
@@ -342,7 +346,100 @@ const BasicExample = withRootTheme(
 );
 
 const store = new Store();
-store.loadStories();
+
+// -------------------- GraphQL playground
+
+const hnTopStories = gql`
+query topStories($limit: Int!) {
+  hn {
+    stories(offset: 0, limit: $limit, storyType: "top") {
+      id
+      title
+      url
+    }
+  }
+}`
+
+const hnItemById = gql`
+# graphql/issues/91, recursive not possible
+fragment comment on HackerNewsItem {
+  ...commentBody
+  kids {
+    ...commentBody
+    kids {
+      ...commentBody
+      kids {
+        ...commentBody
+        kids {
+          ...commentBody
+          kids {
+            ...commentBody
+            kids {
+              ...commentBody
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+fragment commentBody on HackerNewsItem {
+  id
+  text
+  deleted
+}
+
+query itemById($itemId: Int!) {
+  hn {
+    item(id: $itemId) {
+      title
+      kids {
+        ...comment
+      }
+    }
+  }
+}
+`;
+
+
+// HN graphql 3rd party API providers:
+// https://github.com/stubailo/microhn/blob/gh-pages/index.html
+// https://github.com/clayallsopp/graphqlhub/blob/a70c35cfcde5ff90a7dce1163f59b7dae8fd9fbf/graphqlhub-schemas/src/hn.js 
+//  -> https://github.com/clayallsopp/graphqlhub/blob/a70c35cfcde5ff90a7dce1163f59b7dae8fd9fbf/graphqlhub-schemas/src/apis/hn.js
+// https://github.com/clayallsopp/graphqlhub/blob/a70c35cfcde5ff90a7dce1163f59b7dae8fd9fbf/graphqlhub-schemas/src/hn2.js
+
+// Apollo graphql
+// https://www.apollographql.com/docs/react/essentials/get-started.html
+const client = new ApolloClient({
+  uri: "https://www.graphqlhub.com/graphql"
+});
+
+client
+  .query({ query: hnTopStories, variables: { limit: 5 } }) // todo limit:20
+  .then(({ error, data, loading }) => {
+    if (loading) { console.log('hnTopStories(): result: loading'); return; }
+    if (error) { console.error('hnTopStories() err:', error); return; }
+    data.hn.stories.forEach(story => {
+      console.log('hnTopStories() res:', story);
+      // FIXME: clone initStore's logic with Story() ctor for the graphql source's schema
+
+      // TODO: move to actionUserNavigatesToStory
+      client
+        .query({ query: hnItemById, variables: { itemId: story.id } })
+        .then(({ error, data, loading }) => {
+          if (loading) { console.log('hnItemById(): result: loading'); return; }
+          if (error) { console.error('hnItemById() err:', error); return; }
+          console.log('hnItemById() res:', data);
+        });
+
+    });
+  });
+
+
+
+/*store.loadStories();
 
 ReactDOM.render(<BasicExample store={store} />, document.getElementById("root"));
+*/
 export default BasicExample;
