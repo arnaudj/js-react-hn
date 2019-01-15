@@ -8,7 +8,7 @@ import { observable, action, configure, runInAction, computed } from "mobx";
 import { observer, inject, Provider } from "mobx-react";
 import DevTools from "mobx-react-devtools";
 import { BrowserRouter as Router, Route, Link } from "react-router-dom";
-import { apiGetFrontPage, apiGetComments } from "../api";
+import { apiGetFrontPage, apiGetComments, storyFieldsMapper, commentFieldsMapper } from "../api";
 
 import withRootTheme from "../withRootTheme";
 import "typeface-roboto";
@@ -184,16 +184,18 @@ const StoriesList = inject("store")(
 class Comment {
   id;
   author;
-  comment_text;
+  text;
   created_at;
-  created_at_i;
-  parent_id;
-  story_id;
   children;
 
   constructor(jsonSource) {
     Object.assign(this, jsonSource); // Q&D assign from json
     this.id = this.objectID;
+  }
+
+  @action.bound
+  static createComment(apiSpecificFields) {
+    return Object.assign(new Comment(), commentFieldsMapper(apiSpecificFields));
   }
 }
 
@@ -201,7 +203,6 @@ class Comment {
 class Story {
   @observable id;
   @observable created_at;
-  @observable created_at_i;
   @observable title;
   @observable author;
   @observable url;
@@ -212,15 +213,14 @@ class Story {
   @observable isFetching;
   @observable fetchTime;
 
-  constructor(storyJson) {
-    // const { objectID: id, created_at, title, author, url, points, num_comments } = storyJson;
-    Object.assign(this, storyJson);
-    this.id = this.objectID;
+  @action.bound
+  addComment(apiSpecificStoryFields) {
+    this.comments.push(Comment.createComment(apiSpecificStoryFields));
   }
 
   @action.bound
-  addComment(commentJson) {
-    this.comments.push(new Comment(commentJson));
+  static createStory(apiSpecificFields) {
+    return Object.assign(new Story(), storyFieldsMapper(apiSpecificFields));
   }
 
   @computed get fingerprint() {
@@ -239,14 +239,10 @@ class Store {
 
   @action.bound
   loadStories() {
-    apiGetFrontPage().then(stories => this.initStore(stories.data.hits));
-  }
-
-  @action.bound
-  initStore(json) {
-    console.log('initStore: ', json);
-    json.forEach(storyJson => {
-      this.addStory(new Story(storyJson))
+    apiGetFrontPage().then(stories => {
+      stories.data.hits.forEach(storyJson => {
+        this.addStory(storyJson);
+      });
     });
   }
 
@@ -257,7 +253,7 @@ class Store {
   @action.bound
   getOrCreateStory(storyId) {
     const story = this.getStory(storyId);
-    return story ? story : this.addStory(new Story({ objectID: storyId, comments: [] }));
+    return story ? story : this.addStory({ id: storyId, comments: [] });
   }
 
   @action.bound
@@ -296,10 +292,12 @@ class Store {
   }
 
   @action.bound
-  addStory(story) {
-    const existing = this.stories.get(story.id);
+  addStory(apiSpecificStoryFields) {
+    const story = Story.createStory(apiSpecificStoryFields);
+
+    const existing = this.getStory(story.id);
     if (existing) {
-      // can happen when index is bypassed, if getComments run first and then initStore
+      // can happen when index is bypassed, if getComments run first and then loadStories
       // merge but don't overwrite fetch status flags, that where reinflated from default in new story's ctor (@observable fields)
       const { isFetching, fetchTime } = existing;
       const ret = Object.assign(existing, story);
@@ -349,10 +347,10 @@ const store = new Store();
 
 // -------------------- GraphQL playground
 
-const hnTopStories = gql`
-query topStories($limit: Int!) {
+const hnStories = gql`
+query topStories($storyType:String!, $limit: Int!) {
   hn {
-    stories(offset: 0, limit: $limit, storyType: "top") {
+    stories(offset: 0, limit: $limit, storyType: $storyType) {
       id
       title
       url
@@ -402,7 +400,6 @@ query itemById($itemId: Int!) {
 }
 `;
 
-
 // HN graphql 3rd party API providers:
 // https://github.com/stubailo/microhn/blob/gh-pages/index.html
 // https://github.com/clayallsopp/graphqlhub/blob/a70c35cfcde5ff90a7dce1163f59b7dae8fd9fbf/graphqlhub-schemas/src/hn.js 
@@ -414,9 +411,9 @@ query itemById($itemId: Int!) {
 const client = new ApolloClient({
   uri: "https://www.graphqlhub.com/graphql"
 });
-
+/*
 client
-  .query({ query: hnTopStories, variables: { limit: 5 } }) // todo limit:20
+  .query({ query: hnStories, variables: { storyType: "top", limit: 5 } }) // todo limit:20
   .then(({ error, data, loading }) => {
     if (loading) { console.log('hnTopStories(): result: loading'); return; }
     if (error) { console.error('hnTopStories() err:', error); return; }
@@ -435,11 +432,10 @@ client
 
     });
   });
+*/
 
 
-
-/*store.loadStories();
+store.loadStories();
 
 ReactDOM.render(<BasicExample store={store} />, document.getElementById("root"));
-*/
 export default BasicExample;
